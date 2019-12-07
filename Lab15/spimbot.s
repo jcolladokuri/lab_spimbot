@@ -31,8 +31,8 @@ GET_PAINT_BUCKETS				= 0xffff00e4
 ### Puzzle
 GRIDSIZE = 8
 puzzle: .half 0:164
-heap: .half 0:50000
 flag: .word 0
+heap: .half 0:4160
 
 .text
 ###################################################
@@ -705,6 +705,10 @@ main:
   sw $ra, 0($sp)
   sw $s0, 4($sp)
   sw $s1, 8($sp)
+  sw $s2, 8($sp)
+  sw $s3, 8($sp)
+  sw $s4, 8($sp)
+
 
 	li      $t4, 0
 	or      $t4, $t4, BONK_INT_MASK # request bonk
@@ -713,6 +717,7 @@ main:
 	mtc0    $t4, $12
 
 	#Fill in your code here
+  lw $s2, ARENA_MAP             # loading ARENA_MAP into a register
 	li $s0, 10
 	li $s1 0
 	loop:
@@ -749,16 +754,21 @@ main:
 	li $t6, 1												#t0 = 1
 	sw $t6, ENABLE_PAINT_BRUSH($0)	#Activating paint brush
 
+  lw $t0, BOT_X                   #getting spimbot x location
+  lw $t1, BOT_Y                   #getting spimbot y location
 	li $t7, 0
 	sw $t7, ANGLE($0)								#drive to the right
 
 	li $t7, 0
 	sw $t7, ANGLE_CONTROL						#set the angle control to 1
 
-	li $a0, 10
+	li $a0, 1
 	sw $a0, VELOCITY($0)						#drive
 
 	keep_driving:
+  lw $t0, GET_PAINT_BUCKETS       #getting the number of paint buckets
+  li $t1, 0                       #loading 0 for comparison
+  ble $t0, $t1, loop              #if there are no more paint buckets left - solve more puzzles
 	j keep_driving
 
   lw $ra, 0($sp)
@@ -814,13 +824,16 @@ interrupt_dispatch:            # Interrupt:
 bonk_interrupt:
 	sw 		$0, BONK_ACK
     #Fill in your code here
+    lw $t0, BOT_X                 #get spimbot x location
+    lw $t1, BOT_Y                 #get spimbot y location
+
 		li $t7, 0
-		sw $t7, ANGLE_CONTROL					# set the angle control to 1
+		sw $t7, ANGLE_CONTROL					# set the angle control to 0
 
 		li $t7, 90										# turn turn right
 		sw $t7, ANGLE($0)
 
-		li $t7, 10										# drive
+		li $t7, 1										# drive
 		sw $t7, VELOCITY($0)
 
     j       interrupt_dispatch    # see if other interrupts are waiting
