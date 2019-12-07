@@ -27,12 +27,12 @@ TIMER_ACK               = 0xffff006c
 REQUEST_PUZZLE_INT_MASK = 0x800       ## Puzzle
 REQUEST_PUZZLE_ACK      = 0xffff00d8  ## Puzzle
 ENABLE_PAINT_BRUSH      = 0xffff00f0
-GET_PAINT_BUCKETS				= 0xffff00e4
+GET_PAINT_BUCKETS = 0xffff00e4
 ### Puzzle
-GRIDSIZE = 8
-puzzle: .half 0:164
-heap: .half 0:50000
-flag: .word 0
+  GRIDSIZE = 8
+  puzzle: .half 0:164
+  flag: .word 0
+  heap: .half 0:50000
 
 .text
 ###################################################
@@ -700,72 +700,86 @@ ih_done:
     move $v0, $a1
     jr $ra
 main:
-	# Construct interrupt mask
+# Construct interrupt mask
   sub $sp, $sp, 12
   sw $ra, 0($sp)
   sw $s0, 4($sp)
   sw $s1, 8($sp)
+  sw $s2, 12($sp)
+  sw $s3, 16($sp)
+  sw $s4, 20($sp)
 
-	li      $t4, 0
-	or      $t4, $t4, BONK_INT_MASK # request bonk
-	or      $t4, $t4, REQUEST_PUZZLE_INT_MASK	        # puzzle interrupt bit
-	or      $t4, $t4, 1 # global enable
-	mtc0    $t4, $12
+li      $t4, 0
+or      $t4, $t4, BONK_INT_MASK # request bonk
+or      $t4, $t4, REQUEST_PUZZLE_INT_MASK        # puzzle interrupt bit
+or      $t4, $t4, 1 # global enable
+mtc0    $t4, $12
 
-	#Fill in your code here
-	li $s0, 10
-	li $s1 0
-	loop:
-	bge $s1, $s0, paint_tiles			# keep requesting and solving puzzles for ten times
-	la $t0, puzzle								# getting address of puzzle
-	sw  $t0, REQUEST_PUZZLE ($0)	# writing pointer to REQUEST_PUZZLE
+#Fill in your code here
+lw $s2, 0(ARENA_MAP) # s2 is the short map[ROW][COL]
+li $s0, 10
+li $s1 0
+loop:
+bge $s1, $s0, paint_tiles # keep requesting and solving puzzles for ten times
+la $t0, puzzle # getting address of puzzle
+sw  $t0, REQUEST_PUZZLE ($0) # writing pointer to REQUEST_PUZZLE
 
-	li $t2, 1											# t2 = 1
-	while:
-  la $t1, flag									# getting address of flag
+li $t2, 1 # t2 = 1
+while:
+  la $t1, flag # getting address of flag
   lw $t8, flag($0)
-	beq $t2, $t8, solve_puzzle		# keep looping until flag is set to 1
-	j while
+beq $t2, $t8, solve_puzzle # keep looping until flag is set to 1
+j while
 
-	solve_puzzle:
-	li $t1, 0											# set flag back to zero
+solve_puzzle:
+li $t1, 0 # set flag back to zero
   sw $t1, flag($0)
-	move $a0, $t0									# setting first arg: puzzle
-	la $a1, heap									# setting second arg: heap
-	jal copy_board								# copy board to heap
+move $a0, $t0 # setting first arg: puzzle
+la $a1, heap # setting second arg: heap
+jal copy_board # copy board to heap
 
-	move $a0, $a1									# setting arguments to solve puzzle
-	move $a1, $0
-	move $a2, $0
-	la $a3, puzzle
-	jal solve											# solving
+move $a0, $a1 # setting arguments to solve puzzle
+move $a1, $0
+move $a2, $0
+la $a3, puzzle
+jal solve # solving
 
-	la $t3, puzzle
-	sw $t3, SUBMIT_SOLUTION				# submitting solution
-	add $s1, $s1, 1								# t5++
-	j loop
+la $t3, puzzle
+sw $t3, SUBMIT_SOLUTION # submitting solution
+add $s1, $s1, 1 # t5++
+j loop
 
-	paint_tiles:
-	li $t6, 1												#t0 = 1
-	sw $t6, ENABLE_PAINT_BRUSH($0)	#Activating paint brush
+paint_tiles:
+mult $s3, BOT_X, BOT_Y # s3 is the location of bot in arena
+add $s4, $s2, $s3 # add base pointer and offset value
+lw $s3, 0($s4) # s3 is short map[BOT_X][BOT_Y]
+lw $s4, 0($s3) # s4 is the byte color
 
-	li $t7, 0
-	sw $t7, ANGLE($0)								#drive to the right
+if : bne $s4, 0,
 
-	li $t7, 0
-	sw $t7, ANGLE_CONTROL						#set the angle control to 1
+li $t6, 1 #t0 = 1
+sw $t6, ENABLE_PAINT_BRUSH($0) #Activating paint brush
 
-	li $a0, 10
-	sw $a0, VELOCITY($0)						#drive
+li $t7, 0
+sw $t7, ANGLE($0) #drive to the right
 
-	keep_driving:
-	j keep_driving
+li $t7, 0
+sw $t7, ANGLE_CONTROL #set the angle control to 1
+
+li $a0, 10
+sw $a0, VELOCITY($0) #drive
+
+keep_driving:
+j keep_driving
 
   lw $ra, 0($sp)
   lw $s0, 4($sp)
   lw $s1, 8($sp)
-  add $sp, $sp, 12
-	jr $ra
+  lw $s2, 12($sp)
+  lw $s3, 16($sp)
+  lw $s4, 20($sp)
+  add $sp, $sp, 24
+jr $ra
 
 .kdata
 chunkIH:    .space 32
@@ -783,8 +797,8 @@ interrupt_handler:
         sw        $t1, 12($k0)
         sw        $t2, 16($k0)
         sw        $t3, 20($k0)
-		sw $t4, 24($k0)
-		sw $t5, 28($k0)
+sw $t4, 24($k0)
+sw $t5, 28($k0)
 
         mfc0      $k0, $13             # Get Cause register
         srl       $a0, $k0, 2
@@ -803,8 +817,8 @@ interrupt_dispatch:            # Interrupt:
     and        $a0, $k0, TIMER_INT_MASK    # is there a timer interrupt?
     bne        $a0, 0, timer_interrupt
 
-	and 	$a0, $k0, REQUEST_PUZZLE_INT_MASK
-	bne 	$a0, 0, request_puzzle_interrupt
+and $a0, $k0, REQUEST_PUZZLE_INT_MASK
+bne $a0, 0, request_puzzle_interrupt
 
     li        $v0, PRINT_STRING    # Unhandled interrupt types
     la        $a0, unhandled_str
@@ -812,29 +826,29 @@ interrupt_dispatch:            # Interrupt:
     j    done
 
 bonk_interrupt:
-	sw 		$0, BONK_ACK
+sw $0, BONK_ACK
     #Fill in your code here
-		li $t7, 0
-		sw $t7, ANGLE_CONTROL					# set the angle control to 1
+li $t7, 0
+sw $t7, ANGLE_CONTROL # set the angle control to 1
 
-		li $t7, 90										# turn turn right
-		sw $t7, ANGLE($0)
+li $t7, 90 # turn turn right
+sw $t7, ANGLE($0)
 
-		li $t7, 10										# drive
-		sw $t7, VELOCITY($0)
+li $t7, 10 # drive
+sw $t7, VELOCITY($0)
 
     j       interrupt_dispatch    # see if other interrupts are waiting
 
 request_puzzle_interrupt:
-	sw 		$0, REQUEST_PUZZLE_ACK
-	#Fill in your code here
-	li $t1, 1												# puzzle is ready
+sw $0, REQUEST_PUZZLE_ACK
+#Fill in your code here
+li $t1, 1 # puzzle is ready
   sw $t1, flag($0)
-	j	interrupt_dispatch
+j interrupt_dispatch
 
 timer_interrupt:
-	sw 		$0, TIMER_ACK
-	#Fill in your code here
+sw $0, TIMER_ACK
+#Fill in your code here
     j        interrupt_dispatch    # see if other interrupts are waiting
 
 non_intrpt:                # was some non-interrupt
@@ -847,12 +861,12 @@ done:
     la      $k0, chunkIH
     lw      $a0, 0($k0)        # Restore saved registers
     lw      $v0, 4($k0)
-	lw      $t0, 8($k0)
+lw      $t0, 8($k0)
     lw      $t1, 12($k0)
     lw      $t2, 16($k0)
     lw      $t3, 20($k0)
-	lw $t4, 24($k0)
-	lw $t5, 28($k0)
+lw $t4, 24($k0)
+lw $t5, 28($k0)
 .set noat
     move    $at, $k1        # Restore $at
 .set at
