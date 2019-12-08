@@ -705,6 +705,9 @@ main:
   sw $ra, 0($sp)
   sw $s0, 4($sp)
   sw $s1, 8($sp)
+  sw $s2, 12($sp)
+  sw $s3, 16($sp)
+  sw $s4, 20($sp)
 
 li      $t4, 0
 or      $t4, $t4, BONK_INT_MASK # request bonk
@@ -713,6 +716,7 @@ or      $t4, $t4, 1 # global enable
 mtc0    $t4, $12
 
 #Fill in your code here
+lw $s2, 0(ARENA_MAP) # s2 is the short map[ROW][COL]
 li $s0, 10
 li $s1 0
 loop:
@@ -746,6 +750,12 @@ add $s1, $s1, 1 # t5++
 j loop
 
 paint_tiles:
+mult $s3, BOT_X, BOT_Y # s3 is the location of bot in arena
+add $s4, $s2, $s3 # add base pointer and offset value
+lw $s3, 0($s4) # s3 is short map[BOT_X][BOT_Y]
+lw $s4, 0($s3) # s4 is the byte color
+
+if : bne $s4, 0,
 
 li $t6, 1 #t0 = 1
 sw $t6, ENABLE_PAINT_BRUSH($0) #Activating paint brush
