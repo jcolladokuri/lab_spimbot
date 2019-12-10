@@ -28,13 +28,11 @@ REQUEST_PUZZLE_INT_MASK = 0x800       ## Puzzle
 REQUEST_PUZZLE_ACK      = 0xffff00d8  ## Puzzle
 ENABLE_PAINT_BRUSH      = 0xffff00f0
 GET_PAINT_BUCKETS = 0xffff00e4
-
 ### Puzzle
   GRIDSIZE = 8
   puzzle: .half 0:164
   flag: .word 0
   heap: .half 0:50000
-  map: .space 1800
 
 .text
 ###################################################
@@ -701,19 +699,12 @@ ih_loop:
 ih_done:
     move $v0, $a1
     jr $ra
-
 main:
 # Construct interrupt mask
   sub $sp, $sp, 12
   sw $ra, 0($sp)
   sw $s0, 4($sp)
   sw $s1, 8($sp)
-  #sw $s2, 12($sp)
-  #sw $s3, 16($sp)
-  #sw $s4, 20($sp)
-  #sw $s5, 24($sp)
-  #sw $s6, 28($sp)
-  #sw $s7, 32($sp)
 
 li      $t4, 0
 or      $t4, $t4, BONK_INT_MASK # request bonk
@@ -722,7 +713,6 @@ or      $t4, $t4, 1 # global enable
 mtc0    $t4, $12
 
 #Fill in your code here
-
 li $s0, 10
 li $s1 0
 loop:
@@ -770,15 +760,18 @@ li $a0, 10
 sw $a0, VELOCITY($0) #drive
 
 keep_driving:
-j keep_driving
+  lw $t0, GET_PAINT_BUCKETS
+  li $t1, 0
+  ble $t0, $t1, loop
+  j keep_driving
 
   lw $ra, 0($sp)
   lw $s0, 4($sp)
   lw $s1, 8($sp)
-  #lw $s2, 12($sp)
-  #lw $s3, 16($sp)
-  #lw $s4, 20($sp)
-  add $sp, $sp, 12
+  lw $s2, 12($sp)
+  lw $s3, 16($sp)
+  lw $s4, 20($sp)
+  add $sp, $sp, 24
 jr $ra
 
 .kdata
@@ -799,9 +792,6 @@ interrupt_handler:
         sw        $t3, 20($k0)
 sw $t4, 24($k0)
 sw $t5, 28($k0)
-sw $t6, 32($k0)
-#sw $t7, 36($k0)
-#sw $t8, 40($k0)
 
         mfc0      $k0, $13             # Get Cause register
         srl       $a0, $k0, 2
@@ -810,7 +800,8 @@ sw $t6, 32($k0)
 
 
 
-interrupt_dispatch:            # Interrupt:
+
+interrupt_dispatch:       # Interrupt:
     mfc0       $k0, $13        # Get Cause register, again
     beq        $k0, 0, done        # handled all outstanding interrupts
 
@@ -834,93 +825,23 @@ sw $0, BONK_ACK
 li $t7, 0
 sw $t7, ANGLE_CONTROL # set the angle control to 1
 
-la $t6, ARENA_MAP
+  lw $t2, TIMER($0)
+  lw $t3, BOT_Y($0)
 
-# pickup power address is the offset for $0, that would represent picking up a power map.. use a sw
+  #mul $t6, $t2, $t3 # BOT_X * BOT_Y
+  add $t8, $t2, $t3 # BOT_X + BOT_Y
 
-#lw $t6, 0($t6) # pointer to ARENA_MAP
+  rem $t6, $t2, 360 # t6 is 1 is product is odd
+  #and $t8, $t3, 1 # t8 is 1 if sum is odd
 
-lw $t2, BOT_X($0)
-lw $t3, BOT_Y($0)
+  move $t7, $t6 # turn up
+  sw $t7, ANGLE($0)
 
-go_right:
-  li $t4, 0
-  addi $t4, $t2, 1 # try to go to the right
-  mul $t4, $t4, $t3 # s3 is the location of bot in arena
-  add $t5, $t6, $t4 # add base pointer and offset value
+  li $t7, 1 # drive
+  sw $t7, VELOCITY($0)
 
-  lhu $t8, 0($t5) # s3 is short map[BOT_X+1][BOT_Y]
-  #lhu $s4, 0($t8) # s4 is the byte color
-  #lhu $s5, 1($t8) # s5 is whether ground or obstacle
-
-  if1 : bne $s4, 0, go_left
-    if2 : bne $s5, 1, go_left
-    # can travel right
-    li $t7, 90 # turn right
-    sw $t7, ANGLE($0)
-
-    li $t7, 10 # drive
-    sw $t7, VELOCITY($0)
-
-go_left:
-  li $t4, 0
-  addi $t4, $t2, -1 # try to go to the left
-  mul $t4, $t4, $t3 # s3 is the location of bot in arena
-  add $t5, $t5, $t4 # add base pointer and offset value
-
-  lw $t6, 0($t5) # s3 is short map[BOT_X+1][BOT_Y]
-  lw $s4, 0($t6) # s4 is the byte color
-  lw $s5, 1($t6) # s5 is whether ground or obstacle
-
-  if3 : bne $s4, 0, go_down
-    if4 : bne $s5, 1, go_down
-    # can travel left
-    li $t7, -180 # turn left ?????
-    sw $t7, ANGLE($0)
-
-    li $t7, 10 # drive
-    sw $t7, VELOCITY($0)
-
-go_down:
-  li $t4, 0
-  addi $t4, $t3, 1 # try to go to the down
-  mul $t4, $t4, $t2 # s3 is the location of bot in arena
-  add $t5, $t5, $t4 # add base pointer and offset value
-
-  lw $t6, 0($t5) # s3 is short map[BOT_X+1][BOT_Y]
-  lw $s4, 0($t6) # s4 is the byte color
-  lw $s5, 1($t6) # s5 is whether ground or obstacle
-
-  if5 : bne $s4, 0, go_up
-    if6 : bne $s5, 1, go_up
-    # can travel down
-    li $t7, 180 # turn down ????
-    sw $t7, ANGLE($0)
-
-    li $t7, 10 # drive
-    sw $t7, VELOCITY($0)
-
-go_up:
-  li $t4, 0
-  addi $t4, $t3, -1 # try to go to the up
-  mul $t4, $t4, $t2 # s3 is the location of bot in arena
-  add $t5, $t5, $t4 # add base pointer and offset value
-
-  lw $t6, 0($t5) # s3 is short map[BOT_X+1][BOT_Y]
-  lw $s4, 0($t6) # s4 is the byte color
-  lw $s5, 1($t6) # s5 is whether ground or obstacle
-
-  if7 : bne $s4, 0, no_travel
-    if8 : bne $s5, 1, no_travel
-      # can travel up
-      li $t7, -90 # turn up ????
-      sw $t7, ANGLE($0)
-
-      li $t7, 10 # drive
-      sw $t7, VELOCITY($0)
-
-    no_travel: # not sure if this is right.....
-      j       interrupt_dispatch    # see if other interrupts are waiting
+  doneShruthi:
+    j       interrupt_dispatch    # see if other interrupts are waiting
 
 request_puzzle_interrupt:
 sw $0, REQUEST_PUZZLE_ACK
@@ -950,8 +871,7 @@ lw      $t0, 8($k0)
     lw      $t3, 20($k0)
 lw $t4, 24($k0)
 lw $t5, 28($k0)
-lw $t6, 32($k0)
-#lw $t7, 36($k0)
+
 .set noat
     move    $at, $k1        # Restore $at
 .set at
