@@ -1,0 +1,12 @@
+For our strategy, we wanted to randomize which angle the bot would turn in. To do this,
+we took advantage of the timer because the timer was a different number every
+single second of the run time. We took the remainder of the time with 360 and we made
+this the angle. By modding it with 360, this would ensure that the angle remains valid
+and that the bot can travel in that location.
+
+We also tried to save an inventory to keep track of the power ups. At every tile,
+we tried to pick up the power up if there was one. However, we failed to finish up on this.
+
+One problem we faced was that the bot was running out of paint buckets and we
+were failing on getting more paint buckets. Because of this, we could only paint
+a maximum of 50 tiles.
