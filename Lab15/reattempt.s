@@ -760,7 +760,10 @@ li $a0, 10
 sw $a0, VELOCITY($0) #drive
 
 keep_driving:
-j keep_driving
+  lw $t0, GET_PAINT_BUCKETS
+  li $t1, 0
+  ble $t0, $t1, loop
+  j keep_driving
 
   lw $ra, 0($sp)
   lw $s0, 4($sp)
@@ -789,7 +792,6 @@ interrupt_handler:
         sw        $t3, 20($k0)
 sw $t4, 24($k0)
 sw $t5, 28($k0)
-sw $t6, 32($k0)
 
         mfc0      $k0, $13             # Get Cause register
         srl       $a0, $k0, 2
@@ -798,7 +800,8 @@ sw $t6, 32($k0)
 
 
 
-interrupt_dispatch:            # Interrupt:
+
+interrupt_dispatch:       # Interrupt:
     mfc0       $k0, $13        # Get Cause register, again
     beq        $k0, 0, done        # handled all outstanding interrupts
 
@@ -822,25 +825,22 @@ sw $0, BONK_ACK
 li $t7, 0
 sw $t7, ANGLE_CONTROL # set the angle control to 1
 
-  addi $t6, $t6, 1
-  and $t7, $t6, 1
-  beq $t7, 1, odd
-    even:
-      li $t7, -90 # turn left
-      sw $t7, ANGLE($0)
+  lw $t2, TIMER($0)
+  lw $t3, BOT_Y($0)
 
-      li $t7, 10 # drive
-      sw $t7, VELOCITY($0)
-      j doneShruthi
-  odd:
-    li $t7, 90 # turn right
-    sw $t7, ANGLE($0)
+  #mul $t6, $t2, $t3 # BOT_X * BOT_Y
+  add $t8, $t2, $t3 # BOT_X + BOT_Y
 
-    li $t7, 10 # drive
-    sw $t7, VELOCITY($0)
+  rem $t6, $t2, 360 # t6 is 1 is product is odd
+  #and $t8, $t3, 1 # t8 is 1 if sum is odd
+
+  move $t7, $t6 # turn up
+  sw $t7, ANGLE($0)
+
+  li $t7, 1 # drive
+  sw $t7, VELOCITY($0)
 
   doneShruthi:
-
     j       interrupt_dispatch    # see if other interrupts are waiting
 
 request_puzzle_interrupt:
@@ -871,7 +871,7 @@ lw      $t0, 8($k0)
     lw      $t3, 20($k0)
 lw $t4, 24($k0)
 lw $t5, 28($k0)
-lw $t6, 32($k0)
+
 .set noat
     move    $at, $k1        # Restore $at
 .set at
